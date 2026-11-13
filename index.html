@@ -1,0 +1,2288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="An arcade game: steer a small ship up through falling blocks, collect fruit and shields, with its own generated music.">
+    <title>Space Blocks</title>
+    <link rel="icon" href="favicon.ico" sizes="32x32">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <style>
+        :root {
+            --bg: #000;
+            --border-hover: #999;
+            --text: #fff;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            --edge: 40px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        button, input, select, a {
+            font-family: inherit;
+        }
+
+        button:focus-visible, a:focus-visible {
+            outline: 1px solid var(--text) !important;
+            outline-offset: 2px;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            height: 100vh;
+            height: 100dvh;
+            touch-action: none;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            height: 100dvh;
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            aspect-ratio: 9 / 16;
+            max-height: 100%;
+            max-width: 100%;
+        }
+
+        #canvas {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: #0a0a0a;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .touch-controls {
+            display: none;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: calc(120px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            z-index: 60;
+            flex-direction: row;
+            background: transparent;
+            border-top: none;
+        }
+
+        .touch-zone-steer {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+        }
+
+        .touch-btn {
+            position: relative;
+            flex: 1;
+            border: none;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+            opacity: 0.7;
+            pointer-events: auto;
+        }
+
+        .touch-btn:active, .touch-btn.active {
+            opacity: 0.9;
+        }
+        .touch-btn.no-anim:active, .touch-btn.no-anim.active {
+            opacity: 1;
+        }
+
+        .touch-btn-thrust {
+            flex: 1;
+        }
+
+        .touch-btn-label {
+            position: absolute;
+            top: 12px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: rgba(255, 255, 255, 0.4);
+            pointer-events: none;
+            animation: touch-label-color 0.8s linear infinite;
+        }
+        .touch-btn.no-anim .touch-btn-label {
+            display: none;
+        }
+
+        .touch-btn-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: touch-btn-color 0.8s linear infinite;
+        }
+
+        .touch-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.5);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .touch-btn-thrust .touch-btn-icon {
+            width: 56px;
+            height: 56px;
+        }
+
+        .touch-btn-thrust svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        @keyframes touch-btn-color {
+            0%   { border-color: #ff69b4; }
+            33%  { border-color: #8b0000; }
+            66%  { border-color: #ffffff; }
+            100% { border-color: #ff69b4; }
+        }
+        @keyframes touch-btn-stroke {
+            0%   { stroke: #ff69b4; }
+            33%  { stroke: #8b0000; }
+            66%  { stroke: #ffffff; }
+            100% { stroke: #ff69b4; }
+        }
+        @keyframes touch-label-color {
+            0%   { color: #ff69b4; }
+            33%  { color: #8b0000; }
+            66%  { color: #ffffff; }
+            100% { color: #ff69b4; }
+        }
+        .touch-btn {
+            animation: none;
+        }
+        .touch-btn svg {
+            animation: touch-btn-stroke 0.8s linear infinite;
+        }
+        .touch-btn.no-anim {
+            animation: none;
+            border-color: transparent;
+            background: transparent;
+            opacity: 1;
+        }
+        .touch-btn.no-anim .touch-btn-icon {
+            animation: none;
+            border-color: rgba(255, 255, 255, 0.15);
+            opacity: 0.5;
+            transition: opacity 0.1s;
+        }
+        .touch-btn.no-anim.active .touch-btn-icon {
+            opacity: 0.8;
+        }
+        .touch-btn.no-anim svg {
+            animation: none;
+            stroke: rgba(255, 255, 255, 0.5);
+        }
+
+
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .canvas-container {
+                flex: 1;
+                min-height: 0;
+                padding: 0;
+                padding-top: env(safe-area-inset-top, 0px);
+            }
+
+            .canvas-wrapper {
+                width: 100%;
+                height: 100%;
+                aspect-ratio: auto;
+            }
+
+            #canvas {
+                border: none;
+            }
+
+            .touch-controls {
+                display: flex;
+            }
+
+        }
+
+
+        /* Menu icon: standard pteroscillator icon, 28px with a 44px hit area */
+        .desktop-nav-toggle {
+            position: fixed;
+            top: calc(var(--edge) + env(safe-area-inset-top, 0px));
+            right: calc(var(--edge) + env(safe-area-inset-right, 0px));
+            z-index: 5;
+            display: block;
+            background: none;
+            border: none;
+            padding: 8px;
+            margin: -8px;
+            color: var(--border-hover);
+            cursor: pointer;
+            line-height: 0;
+            transition: color 0.3s;
+        }
+
+        .desktop-nav-toggle:hover {
+            color: var(--text);
+        }
+
+        .desktop-nav-toggle svg {
+            display: block;
+        }
+
+        .desktop-nav-toggle.hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .desktop-nav-toggle {
+                display: none;
+            }
+        }
+
+
+        /* --- Pre-splash (mobile audio unlock) --- */
+        .pre-splash {
+            display: none;
+            position: absolute;
+            inset: 0;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.75);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .pre-splash.active {
+            display: flex;
+        }
+        .pre-splash-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            border: 1px solid rgba(255,255,255,0.75);
+            padding: 0 0 36px 0;
+            background: #000;
+            width: 70%;
+            overflow: hidden;
+        }
+        .pre-splash-box .modal-logo-wrap {
+            position: relative;
+            width: 100%;
+        }
+        .pre-splash-hint {
+            font-size: clamp(9px, 1.8vw, 12px);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            text-align: center;
+            animation: modal-color-cycle 0.8s ease-in-out infinite;
+        }
+        @media (max-width: 768px) {
+            .pre-splash {
+                /* full screen - no touch controls visible */
+            }
+            .pre-splash-box {
+                gap: 4px;
+                padding-bottom: 8px;
+            }
+        }
+
+        /* --- Splash modal --- */
+        .modal-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 8%;
+            background: rgba(0, 0, 0, 0.75);
+            cursor: pointer;
+            user-select: none;
+            transition: opacity 0.4s ease;
+        }
+        .modal-overlay.hidden {
+            display: none;
+        }
+        .modal-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            border: 1px solid rgba(255,255,255,0.75);
+            padding: 0 0 36px 0;
+            background: #000;
+            cursor: pointer;
+            width: 70%;
+            max-height: 70vh;
+            overflow: hidden;
+        }
+        .modal-logo-wrap {
+            position: relative;
+            width: 100%;
+        }
+        .modal-logo-img {
+            width: 100%;
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        .modal-logo-border {
+            position: relative;
+        }
+        .modal-title-group {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            isolation: isolate;
+            mix-blend-mode: screen;
+        }
+        .modal-title-tint {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            mix-blend-mode: multiply;
+        }
+        @keyframes modal-color-cycle {
+            0%   { color: #ff69b4; }
+            50%  { color: #8b0000; }
+            100% { color: #ff69b4; }
+        }
+        .modal-color-cycle {
+            animation: modal-color-cycle 0.8s ease-in-out infinite;
+        }
+        .modal-start-hint {
+            font-size: clamp(9px, 1.8vw, 12px);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            text-align: center;
+        }
+        .modal-qr {
+            display: block;
+            width: 160px;
+            height: 160px;
+        }
+        .modal-controls {
+            font-size: clamp(9px, 1.8vw, 12px);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #fff;
+            text-align: center;
+            line-height: 1.8;
+        }
+        .modal-controls kbd {
+            display: inline-block;
+            border: 1px solid rgba(255,255,255,0.5);
+            padding: 2px 8px;
+            margin: 0 2px;
+            font-family: inherit;
+            font-size: inherit;
+            line-height: 1.4;
+            min-width: 1.5em;
+            text-align: center;
+        }
+        .modal-buttons {
+            display: flex;
+            flex-direction: row;
+            gap: 12px;
+            align-items: stretch;
+        }
+        .modal-music-toggle,
+        .modal-exit {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(9px, 1.8vw, 12px);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #fff;
+            background: none;
+            text-decoration: none;
+            border: 1px solid rgba(255,255,255,0.7);
+            padding: 6px 20px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: color 0.3s, border-color 0.3s;
+        }
+        .modal-music-toggle:hover,
+        .modal-exit:hover {
+            border-color: #fff;
+        }
+        .modal-music-toggle .music-status {
+            color: #0f0;
+        }
+        .modal-music-toggle.off .music-status {
+            color: #f44;
+        }
+        @media (max-width: 768px) {
+            .modal-overlay {
+                bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+                align-items: center;
+                padding-top: 0;
+            }
+            .modal-box {
+                gap: 4px;
+                padding-bottom: 8px;
+                max-height: 90vh;
+            }
+            .modal-controls {
+                display: none;
+            }
+            .modal-start-hint {
+                margin: 0;
+            }
+            .modal-exit {
+                padding: 4px 16px;
+            }
+        }
+
+        /* Reduced motion: stop the colour cycling */
+        @media (prefers-reduced-motion: reduce) {
+            .modal-color-cycle,
+            .pre-splash-hint,
+            .touch-btn-label,
+            .touch-btn-icon,
+            .touch-btn svg {
+                animation: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="canvas-container">
+            <div class="canvas-wrapper">
+                <canvas id="canvas"></canvas>
+                <div class="pre-splash" id="pre-splash">
+                    <div class="pre-splash-box">
+                        <div class="modal-logo-wrap">
+                            <img src="space-blocks-border.svg" class="modal-logo-img modal-logo-border" alt="">
+                            <div class="modal-title-group">
+                                <img src="space-blocks-title.svg" class="modal-logo-img" alt="Space Blocks">
+                                <div class="modal-title-tint"></div>
+                            </div>
+                        </div>
+                        <div class="pre-splash-hint modal-color-cycle">Tap anywhere to start</div>
+                    </div>
+                </div>
+                <div class="modal-overlay" id="modal-overlay">
+                    <div class="modal-box">
+                        <div class="modal-logo-wrap">
+                            <img src="space-blocks-border.svg" class="modal-logo-img modal-logo-border" alt="">
+                            <div class="modal-title-group">
+                                <img src="space-blocks-title.svg" class="modal-logo-img" alt="Space Blocks">
+                                <div class="modal-title-tint"></div>
+                            </div>
+                        </div>
+                        <div class="modal-controls" id="modal-controls"></div>
+                        <div class="modal-start-hint modal-color-cycle">Click/tap anywhere to start</div>
+                        <img src="pteroscillator-QRcode.svg" width="160" height="160" alt="QR code to pteroscillator.github.io" class="modal-qr">
+                        <div class="modal-buttons">
+                            <button type="button" class="modal-music-toggle off" id="music-toggle">Music:&nbsp;<span class="music-status">Off</span></button>
+                            <a href="https://pteroscillator.github.io/" class="modal-exit" id="modal-exit">Exit</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="touch-controls">
+                <div class="touch-zone touch-zone-steer">
+                    <div class="touch-btn touch-btn-left" data-key="ArrowLeft">
+                        <span class="touch-btn-label">left</span>
+                        <span class="touch-btn-icon"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+                    </div>
+                    <div class="touch-btn touch-btn-right" data-key="ArrowRight">
+                        <span class="touch-btn-label">right</span>
+                        <span class="touch-btn-icon"><svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></span>
+                    </div>
+                </div>
+                <div class="touch-btn touch-btn-thrust" data-key="Space">
+                    <span class="touch-btn-label">thrust</span>
+                    <span class="touch-btn-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 15 10 9 10"/><line x1="12" y1="10" x2="12" y2="20"/></svg></span>
+                </div>
+            </div>
+        </div>
+
+        <button class="desktop-nav-toggle hidden" id="desktop-nav-toggle" aria-label="Menu"><svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="currentColor"/><rect x="11" y="12.5" width="18" height="3" fill="#000"/><rect x="11" y="18.5" width="18" height="3" fill="#000"/><rect x="11" y="24.5" width="18" height="3" fill="#000"/></svg></button>
+
+    </div>
+
+    <script>
+        // --- Simplex Noise (3D) ---
+        const perm = new Uint8Array(512);
+        const gradP = new Array(512);
+
+        const grad3 = [
+            [1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],
+            [1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],
+            [0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]
+        ];
+
+        function seed(s) {
+            const p = new Uint8Array(256);
+            for (let i = 0; i < 256; i++) p[i] = i;
+            let v = s;
+            for (let i = 255; i > 0; i--) {
+                v = (v * 16807 + 0) % 2147483647;
+                const j = v % (i + 1);
+                [p[i], p[j]] = [p[j], p[i]];
+            }
+            for (let i = 0; i < 512; i++) {
+                perm[i] = p[i & 255];
+                gradP[i] = grad3[perm[i] % 12];
+            }
+        }
+
+        function dot3(g, x, y, z) { return g[0]*x + g[1]*y + g[2]*z; }
+
+        const F3 = 1.0 / 3.0;
+        const G3 = 1.0 / 6.0;
+
+        function simplex3(xin, yin, zin) {
+            let n0, n1, n2, n3;
+            const s = (xin + yin + zin) * F3;
+            const i = Math.floor(xin + s);
+            const j = Math.floor(yin + s);
+            const k = Math.floor(zin + s);
+            const t = (i + j + k) * G3;
+            const X0 = i - t;
+            const Y0 = j - t;
+            const Z0 = k - t;
+            const x0 = xin - X0;
+            const y0 = yin - Y0;
+            const z0 = zin - Z0;
+
+            let i1, j1, k1, i2, j2, k2;
+            if (x0 >= y0) {
+                if (y0 >= z0)      { i1=1; j1=0; k1=0; i2=1; j2=1; k2=0; }
+                else if (x0 >= z0) { i1=1; j1=0; k1=0; i2=1; j2=0; k2=1; }
+                else               { i1=0; j1=0; k1=1; i2=1; j2=0; k2=1; }
+            } else {
+                if (y0 < z0)       { i1=0; j1=0; k1=1; i2=0; j2=1; k2=1; }
+                else if (x0 < z0)  { i1=0; j1=1; k1=0; i2=0; j2=1; k2=1; }
+                else               { i1=0; j1=1; k1=0; i2=1; j2=1; k2=0; }
+            }
+
+            const x1 = x0 - i1 + G3;
+            const y1 = y0 - j1 + G3;
+            const z1 = z0 - k1 + G3;
+            const x2 = x0 - i2 + 2.0 * G3;
+            const y2 = y0 - j2 + 2.0 * G3;
+            const z2 = z0 - k2 + 2.0 * G3;
+            const x3 = x0 - 1.0 + 3.0 * G3;
+            const y3 = y0 - 1.0 + 3.0 * G3;
+            const z3 = z0 - 1.0 + 3.0 * G3;
+
+            const ii = i & 255;
+            const jj = j & 255;
+            const kk = k & 255;
+            const gi0 = gradP[ii + perm[jj + perm[kk]]];
+            const gi1 = gradP[ii + i1 + perm[jj + j1 + perm[kk + k1]]];
+            const gi2 = gradP[ii + i2 + perm[jj + j2 + perm[kk + k2]]];
+            const gi3 = gradP[ii + 1 + perm[jj + 1 + perm[kk + 1]]];
+
+            let t0 = 0.6 - x0*x0 - y0*y0 - z0*z0;
+            if (t0 < 0) n0 = 0;
+            else { t0 *= t0; n0 = t0 * t0 * dot3(gi0, x0, y0, z0); }
+
+            let t1 = 0.6 - x1*x1 - y1*y1 - z1*z1;
+            if (t1 < 0) n1 = 0;
+            else { t1 *= t1; n1 = t1 * t1 * dot3(gi1, x1, y1, z1); }
+
+            let t2 = 0.6 - x2*x2 - y2*y2 - z2*z2;
+            if (t2 < 0) n2 = 0;
+            else { t2 *= t2; n2 = t2 * t2 * dot3(gi2, x2, y2, z2); }
+
+            let t3 = 0.6 - x3*x3 - y3*y3 - z3*z3;
+            if (t3 < 0) n3 = 0;
+            else { t3 *= t3; n3 = t3 * t3 * dot3(gi3, x3, y3, z3); }
+
+            return 32.0 * (n0 + n1 + n2 + n3);
+        }
+
+        function fbm(x, y, z, octaves, persistence, lacunarity) {
+            let value = 0, amplitude = 1, frequency = 1, maxVal = 0;
+            for (let i = 0; i < octaves; i++) {
+                value += amplitude * simplex3(x * frequency, y * frequency, z * frequency);
+                maxVal += amplitude;
+                amplitude *= persistence;
+                frequency *= lacunarity;
+            }
+            return value / maxVal;
+        }
+
+        // --- Canvas setup ---
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.querySelector('.canvas-container');
+        const wrapper = document.querySelector('.canvas-wrapper');
+
+        const TILE_COLS = 20;
+        let BLOCK_SIZE;
+        let SHIP_RADIUS;
+        const ASPECT = 9 / 16;
+        let canvasW, canvasH;
+
+        function calculateCanvasSize() {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                const rect = wrapper.getBoundingClientRect();
+                canvasW = Math.floor(rect.width);
+                canvasH = Math.floor(rect.height);
+            } else {
+                const areaW = container.clientWidth - 40;
+                const areaH = container.clientHeight - 40;
+                if (areaH * ASPECT <= areaW) {
+                    canvasH = areaH;
+                    canvasW = Math.floor(areaH * ASPECT);
+                } else {
+                    canvasW = areaW;
+                    canvasH = Math.floor(areaW / ASPECT);
+                }
+            }
+            BLOCK_SIZE = Math.floor(canvasW / TILE_COLS);
+            canvasW = BLOCK_SIZE * TILE_COLS;
+            canvasH = Math.floor(canvasH / BLOCK_SIZE) * BLOCK_SIZE;
+            canvas.width = canvasW;
+            canvas.height = canvasH;
+            wrapper.style.width = canvasW + 'px';
+            wrapper.style.height = canvasH + 'px';
+            SHIP_RADIUS = Math.round(BLOCK_SIZE * 0.375);
+        }
+
+        calculateCanvasSize();
+
+        // --- Audio ---
+        let audioCtx = null;
+
+        // Shared reverb bus
+        let reverbInput = null;
+        let reverbConvolver = null;
+        let reverbWet = null;
+
+        // Thrust noise state
+        let _whiteNoiseBuffer = null;
+        let thrustNoiseGain = null;
+        let thrustNoiseColor = null;
+        let thrustNoiseSource = null;
+        let thrustActive = false;
+        let thrustStartTime = 0;
+        let thrustColorPhase = 0;
+
+        // --- Background Music (chord-based ambient) ---
+        const NOTE_FREQ = {
+            'D1': 36.71, 'B1': 61.74,
+            'E2': 82.41, 'F2': 87.31, 'F#2': 92.50, 'G2': 98.00, 'Ab2': 103.83,
+            'A2': 110.00, 'Bb2': 116.54, 'B2': 123.47,
+            'C3': 130.81, 'C#3': 138.59, 'Db3': 138.59, 'D3': 146.83,
+            'Eb3': 155.56, 'E3': 164.81, 'F3': 174.61, 'F#3': 185.00, 'Gb3': 185.00,
+            'G3': 196.00, 'Ab3': 207.65, 'A3': 220.00, 'Bb3': 233.08, 'B3': 246.94,
+            'C4': 261.63, 'C#4': 277.18, 'Db4': 277.18, 'D4': 293.66, 'Eb4': 311.13,
+            'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00, 'G#4': 415.30, 'Ab4': 415.30,
+            'A4': 440.00, 'Bb4': 466.16, 'B4': 493.88,
+            'C5': 523.25, 'C#5': 554.37, 'D5': 587.33, 'E5': 659.26, 'F5': 698.46, 'F#5': 739.99,
+            'A5': 880.00, 'G#5': 830.61, 'B5': 987.77, 'C#6': 1108.73, 'D6': 1174.66, 'E6': 1318.51, 'F6': 1396.91, 'F#6': 1479.98,
+        };
+        const CHORDS = [
+            { name: 'Chord 1',  notes: ['F#2', 'B2', 'D4', 'A4', 'D5', 'E5', 'A5', 'D6'] },
+            { name: 'Chord 2',  notes: ['B2', 'D3', 'D4', 'E4', 'A4', 'D5', 'E5', 'A5', 'D6'] },
+            { name: 'Chord 3',  notes: ['C#3', 'F#3', 'E4', 'A4', 'E5', 'A5', 'E6'] },
+            { name: 'Chord 4',  notes: ['F#2', 'C#3', 'E4', 'A4', 'B4', 'E5', 'A5', 'B5', 'F#6'] },
+            { name: 'Chord 5',  notes: ['D1', 'A2', 'E4', 'F#4', 'G#4', 'B4', 'E5', 'B5'] },
+            { name: 'Chord 6',  notes: ['A2', 'E3', 'E4', 'F#4', 'G#4', 'B4', 'C#5', 'E5', 'B5'] },
+            { name: 'Chord 7',  notes: ['C#3', 'F#3', 'F#4', 'G#4', 'A4', 'C#5', 'A5', 'C#6'] },
+            { name: 'Chord 8',  notes: ['F#2', 'C#3', 'F#4', 'G#4', 'A4', 'B4', 'C#5', 'F#5'] },
+            { name: 'Chord 9',  notes: ['E2', 'A2', 'C#4', 'F#4', 'G#4', 'A4', 'B4', 'E5', 'G#5', 'B5', 'E6'] },
+            { name: 'Chord 10', notes: ['D1', 'A2', 'F#4', 'G#4', 'A4', 'E5', 'A5', 'E6'] },
+            { name: 'Chord 11', notes: ['A2', 'D3', 'E4', 'F#4', 'A4', 'E5', 'A5'] },
+        ];
+        const HARMONIC_MULTS = [2, 3, 4, 5, 6];
+
+        // Music audio nodes (separate from SFX)
+        let musicMasterGain = null;
+        let musicBypassGain = null;
+        let musicLpFilter = null;
+        let musicReverbSend = null;
+        let musicReverbConvolver = null;
+        let musicReverbWet = null;
+
+        // Music params (defaults from chords.html)
+        const musicVolume = 0.3;
+        const musicCutoffBase = 1100;
+        const musicResonance = 5;
+        const musicCrossfade = 3;
+        const musicHarmonicLevels = [100, 65, 40, 65, 40, 50];
+        const musicVibratoSpeed = 1;
+        const musicLfoPeriod = 10;
+        const musicLfoMin = -500;
+        const musicLfoMax = 200;
+        let musicLfoStartTime = 0;
+
+        let musicEnabled = false;
+        let activeChordIndex = -1;
+        let activeVoices = null;
+        let autoPlayTimer = null;
+        const autoPlaySpeed = 20;
+
+        function getWhiteNoiseBuffer(ctx) {
+            if (_whiteNoiseBuffer) return _whiteNoiseBuffer;
+            const bufSize = ctx.sampleRate * 4;
+            const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+            _whiteNoiseBuffer = buf;
+            return buf;
+        }
+
+        function colorToFrequency(colorValue) {
+            const minF = Math.log(200), maxF = Math.log(20000);
+            const t = (colorValue - 1) / 99;
+            return Math.exp(minF + t * (maxF - minF));
+        }
+
+        function buildThrustNoise() {
+            if (thrustNoiseGain) return;
+
+            thrustNoiseGain = audioCtx.createGain();
+            thrustNoiseGain.gain.value = 0;
+
+            thrustNoiseColor = audioCtx.createBiquadFilter();
+            thrustNoiseColor.type = 'lowpass';
+            thrustNoiseColor.frequency.value = colorToFrequency(1);
+            thrustNoiseColor.Q.value = 0;
+
+            const bass = audioCtx.createBiquadFilter();
+            bass.type = 'lowshelf';
+            bass.frequency.value = 200;
+            bass.gain.value = 5;
+
+            const mid = audioCtx.createBiquadFilter();
+            mid.type = 'peaking';
+            mid.frequency.value = 1000;
+            mid.Q.value = 1;
+            mid.gain.value = -4;
+
+            const treble = audioCtx.createBiquadFilter();
+            treble.type = 'highshelf';
+            treble.frequency.value = 4000;
+            treble.gain.value = 8;
+
+            thrustNoiseSource = audioCtx.createBufferSource();
+            thrustNoiseSource.buffer = getWhiteNoiseBuffer(audioCtx);
+            thrustNoiseSource.loop = true;
+
+            thrustNoiseSource.connect(thrustNoiseGain);
+            thrustNoiseGain.connect(thrustNoiseColor);
+            thrustNoiseColor.connect(bass);
+            bass.connect(mid);
+            mid.connect(treble);
+            treble.connect(audioCtx.destination);
+            thrustNoiseSource.start();
+        }
+
+        function updateThrustSound() {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            const thrusting = !!keys['Space'];
+            const now = audioCtx.currentTime;
+
+            if (thrusting && !thrustActive) {
+                // Thrust start
+                buildThrustNoise();
+                thrustActive = true;
+                thrustStartTime = now;
+                thrustColorPhase = Math.PI / 2;
+                thrustNoiseColor.frequency.value = colorToFrequency(1);
+                thrustNoiseGain.gain.cancelScheduledValues(now);
+                thrustNoiseGain.gain.setValueAtTime(thrustNoiseGain.gain.value, now);
+                thrustNoiseGain.gain.linearRampToValueAtTime(1.0, now + 0.05);
+            } else if (!thrusting && thrustActive) {
+                // Thrust release
+                thrustActive = false;
+                thrustNoiseGain.gain.cancelScheduledValues(now);
+                thrustNoiseGain.gain.setValueAtTime(thrustNoiseGain.gain.value, now);
+                thrustNoiseGain.gain.linearRampToValueAtTime(0, now + 0.5);
+            }
+
+            if (thrustActive) {
+                const elapsed = now - thrustStartTime;
+                let currentColor;
+                if (elapsed < 1.0) {
+                    // Sweep from 1 to 30 over 1 second
+                    currentColor = 1 + (elapsed / 1.0) * 29;
+                } else {
+                    // Oscillate between 20 and 30
+                    thrustColorPhase += 0.03;
+                    currentColor = 25 + 5 * Math.sin(thrustColorPhase);
+                }
+                thrustNoiseColor.frequency.value = colorToFrequency(currentColor);
+            }
+        }
+
+        function stopThrustSound() {
+            if (!thrustNoiseGain) return;
+            thrustActive = false;
+            const now = audioCtx.currentTime;
+            thrustNoiseGain.gain.cancelScheduledValues(now);
+            thrustNoiseGain.gain.setValueAtTime(0, now);
+        }
+
+        function makeImpulseBuffer(ctx, duration, decay) {
+            const len = ctx.sampleRate * duration;
+            const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+            for (let ch = 0; ch < 2; ch++) {
+                const data = buf.getChannelData(ch);
+                for (let i = 0; i < len; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+                }
+            }
+            return buf;
+        }
+
+        function buildReverb() {
+            reverbInput = audioCtx.createGain();
+            reverbConvolver = audioCtx.createConvolver();
+            reverbConvolver.buffer = makeImpulseBuffer(audioCtx, 4.5, 9);
+            reverbWet = audioCtx.createGain();
+            reverbWet.gain.value = 1.0;
+            reverbInput.connect(reverbConvolver);
+            reverbConvolver.connect(reverbWet);
+            reverbWet.connect(audioCtx.destination);
+        }
+
+        function playFruitSound(currentShields = 0) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            const scale = Math.pow(1.1, currentShields);
+            const lowFreq = 233 * scale;
+            const highFreq = 2592 * scale;
+            const dur = 0.07;
+            const vol = 0.08;
+
+            const masterGain = audioCtx.createGain();
+            masterGain.gain.setValueAtTime(vol, now);
+            masterGain.gain.setValueAtTime(vol, now + dur * 0.8);
+            masterGain.gain.linearRampToValueAtTime(0, now + dur);
+
+            // Fundamental (square, sweep lowFreq → highFreq)
+            const osc1 = audioCtx.createOscillator();
+            osc1.type = 'square';
+            osc1.frequency.setValueAtTime(lowFreq, now);
+            osc1.frequency.exponentialRampToValueAtTime(highFreq, now + dur);
+            osc1.connect(masterGain);
+            osc1.start(now);
+            osc1.stop(now + dur + 0.05);
+
+            // 6th harmonic (square, sweep lowFreq*6 → highFreq*6, half amplitude)
+            const osc6 = audioCtx.createOscillator();
+            osc6.type = 'square';
+            osc6.frequency.setValueAtTime(lowFreq * 6, now);
+            osc6.frequency.exponentialRampToValueAtTime(highFreq * 6, now + dur);
+            const gain6 = audioCtx.createGain();
+            gain6.gain.value = 0.5;
+            osc6.connect(gain6);
+            gain6.connect(masterGain);
+            osc6.start(now);
+            osc6.stop(now + dur + 0.05);
+
+            // Dry path
+            masterGain.connect(audioCtx.destination);
+
+        }
+
+        function playHealthSound() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            const offset = (Math.floor(Math.random() * 17) - 8) * 0.25;
+            const freq = 3000 * Math.pow(2, offset / 12);
+
+            const osc1 = audioCtx.createOscillator();
+            osc1.type = 'sine';
+            osc1.frequency.value = freq;
+
+            const osc2 = audioCtx.createOscillator();
+            osc2.type = 'sine';
+            osc2.frequency.value = freq * 6;
+
+            const gain1 = audioCtx.createGain();
+            gain1.gain.value = 0.3;
+            const gain2 = audioCtx.createGain();
+            gain2.gain.value = 0.3 * 0.66;
+
+            const master = audioCtx.createGain();
+            master.gain.setValueAtTime(0, now);
+            master.gain.linearRampToValueAtTime(0.15, now + 0.003);
+            master.gain.linearRampToValueAtTime(0, now + 0.5);
+
+            osc1.connect(gain1);
+            osc2.connect(gain2);
+            gain1.connect(master);
+            gain2.connect(master);
+
+            // Dry path
+            master.connect(audioCtx.destination);
+
+            // Reverb send
+            if (reverbInput) {
+                const sendGain = audioCtx.createGain();
+                sendGain.gain.value = 0.2;
+                master.connect(sendGain);
+                sendGain.connect(reverbInput);
+            }
+
+            osc1.start(now);
+            osc2.start(now);
+            osc1.stop(now + 0.55);
+            osc2.stop(now + 0.55);
+        }
+
+        function initAudio() {
+            if (audioCtx) return;
+            // iOS: play through the silent switch (Safari 16.4+)
+            try {
+                if (navigator.audioSession) navigator.audioSession.type = 'playback';
+            } catch (e) {}
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            buildReverb();
+        }
+
+        // --- Background Music functions ---
+        function initBackgroundMusic() {
+            if (!audioCtx) return;
+
+            musicMasterGain = audioCtx.createGain();
+            musicMasterGain.gain.value = musicVolume;
+
+            musicLpFilter = audioCtx.createBiquadFilter();
+            musicLpFilter.type = 'lowpass';
+            musicLpFilter.frequency.value = musicCutoffBase;
+            musicLpFilter.Q.value = musicResonance;
+
+            musicMasterGain.connect(musicLpFilter);
+            musicLpFilter.connect(audioCtx.destination);
+
+            // Music reverb (size=5, decay=6, send=0.30)
+            musicReverbSend = audioCtx.createGain();
+            musicReverbSend.gain.value = 0.30;
+            musicReverbConvolver = audioCtx.createConvolver();
+            musicReverbConvolver.buffer = makeImpulseBuffer(audioCtx, 5, 6);
+            musicReverbWet = audioCtx.createGain();
+            musicReverbWet.gain.value = 1;
+            musicLpFilter.connect(musicReverbSend);
+            musicReverbSend.connect(musicReverbConvolver);
+            musicReverbConvolver.connect(musicReverbWet);
+            musicReverbWet.connect(audioCtx.destination);
+
+            // Bypass bus (all harmonics go through filter, so just connect to masterGain)
+            musicBypassGain = audioCtx.createGain();
+            musicBypassGain.gain.value = musicVolume;
+            musicBypassGain.connect(musicMasterGain);
+
+            // Start cutoff LFO
+            musicLfoStartTime = performance.now();
+            requestAnimationFrame(updateMusicCutoffLfo);
+        }
+
+        function updateMusicCutoffLfo() {
+            if (!musicLpFilter) { requestAnimationFrame(updateMusicCutoffLfo); return; }
+            const elapsed = (performance.now() - musicLfoStartTime) / 1000;
+            const sin = Math.sin(2 * Math.PI * elapsed / musicLfoPeriod);
+            const offset = musicLfoMin + (sin + 1) / 2 * (musicLfoMax - musicLfoMin);
+            const cutoff = Math.max(20, musicCutoffBase + offset);
+            musicLpFilter.frequency.value = cutoff;
+            requestAnimationFrame(updateMusicCutoffLfo);
+        }
+
+        function createChordVoice(chord) {
+            const now = audioCtx.currentTime;
+            const voiceMaster = audioCtx.createGain();
+            voiceMaster.gain.value = 0;
+            voiceMaster.connect(musicMasterGain);
+
+            const voiceBypass = audioCtx.createGain();
+            voiceBypass.gain.value = 0;
+            voiceBypass.connect(musicMasterGain); // no bypass - all through filter
+
+            const bassPan = audioCtx.createStereoPanner();
+            bassPan.pan.value = 0;
+            bassPan.connect(voiceMaster);
+
+            const midPan = audioCtx.createStereoPanner();
+            midPan.pan.value = -0.7;
+            midPan.connect(voiceMaster);
+
+            const treblePan = audioCtx.createStereoPanner();
+            treblePan.pan.value = 0.7;
+            treblePan.connect(voiceBypass);
+
+            const oscs = [];
+            const gains = [];
+            const lfoOscs = [];
+
+            chord.notes.forEach(noteName => {
+                const freq = NOTE_FREQ[noteName];
+                if (!freq) return;
+
+                const lfo = audioCtx.createOscillator();
+                lfo.type = 'sine';
+                lfo.frequency.value = musicVibratoSpeed;
+                const lfoGain = audioCtx.createGain();
+                lfoGain.gain.value = 3;
+                lfo.connect(lfoGain);
+                lfo.start(now + Math.random());
+                lfoOscs.push(lfo);
+
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                lfoGain.connect(osc.detune);
+                const gain = audioCtx.createGain();
+                gain.gain.value = (musicHarmonicLevels[0] / 100) / chord.notes.length;
+                osc.connect(gain);
+                gain.connect(bassPan);
+                osc.start(now);
+                oscs.push(osc);
+                gains.push(gain);
+
+                HARMONIC_MULTS.forEach((mult, hi) => {
+                    const hosc = audioCtx.createOscillator();
+                    hosc.type = 'sine';
+                    hosc.frequency.value = freq * mult;
+                    lfoGain.connect(hosc.detune);
+                    const hgain = audioCtx.createGain();
+                    hgain.gain.value = (musicHarmonicLevels[hi + 1] / 100) / chord.notes.length;
+                    hosc.connect(hgain);
+                    hgain.connect(hi >= 3 ? treblePan : midPan);
+                    hosc.start(now);
+                    oscs.push(hosc);
+                    gains.push(hgain);
+                });
+            });
+
+            return { masterGain: voiceMaster, bypassGain: voiceBypass, oscs, gains, lfoOscs, noteCount: chord.notes.length };
+        }
+
+        function fadeOutVoice(voice, duration) {
+            if (!voice) return;
+            const now = audioCtx.currentTime;
+            voice.masterGain.gain.cancelScheduledValues(now);
+            voice.masterGain.gain.setValueAtTime(voice.masterGain.gain.value, now);
+            voice.masterGain.gain.linearRampToValueAtTime(0, now + duration);
+            voice.bypassGain.gain.cancelScheduledValues(now);
+            voice.bypassGain.gain.setValueAtTime(voice.bypassGain.gain.value, now);
+            voice.bypassGain.gain.linearRampToValueAtTime(0, now + duration);
+
+            setTimeout(() => {
+                voice.oscs.forEach(o => { try { o.stop(); } catch(e) {} });
+                if (voice.lfoOscs) voice.lfoOscs.forEach(o => { try { o.stop(); } catch(e) {} });
+                try { voice.masterGain.disconnect(); } catch(e) {}
+                try { voice.bypassGain.disconnect(); } catch(e) {}
+            }, (duration + 0.1) * 1000);
+        }
+
+        function switchChord(index) {
+            if (!audioCtx) return;
+            if (index === activeChordIndex) return;
+
+            const chord = CHORDS[index];
+            const oldVoice = activeVoices;
+
+            const newVoice = createChordVoice(chord);
+            const now = audioCtx.currentTime;
+            newVoice.masterGain.gain.setValueAtTime(0, now);
+            newVoice.masterGain.gain.linearRampToValueAtTime(1, now + musicCrossfade);
+            newVoice.bypassGain.gain.setValueAtTime(0, now);
+            newVoice.bypassGain.gain.linearRampToValueAtTime(1, now + musicCrossfade);
+
+            fadeOutVoice(oldVoice, musicCrossfade);
+
+            activeVoices = newVoice;
+            activeChordIndex = index;
+        }
+
+        function autoPlayNext() {
+            const next = (activeChordIndex + 1) % CHORDS.length;
+            switchChord(next);
+            autoPlayTimer = setTimeout(autoPlayNext, autoPlaySpeed * 1000);
+        }
+
+        function playCollisionSound(col) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            const freq = 100 + Math.random() * 4900;
+            const dur = 0.15;
+            const fade = 0.02;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const pan = audioCtx.createStereoPanner();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            pan.pan.value = (col / TILE_COLS) * 2 - 1;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.2, now + fade);
+            gain.gain.linearRampToValueAtTime(0, now + dur);
+            osc.connect(gain);
+            gain.connect(pan);
+            pan.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + dur);
+        }
+
+        // --- Block flash ---
+        const flashingBlocks = new Map();
+        const FLASH_DURATION = 120; // ms
+        function flashBlock(col, wRow) {
+            const key = col + ',' + wRow;
+            if (flashingBlocks.has(key)) return;
+            flashingBlocks.set(key, performance.now());
+            blocksDirty = true;
+        }
+        function expireFlashes() {
+            if (flashingBlocks.size === 0) return;
+            const now = performance.now();
+            let expired = false;
+            for (const [key, t] of flashingBlocks) {
+                if (now - t > FLASH_DURATION) {
+                    flashingBlocks.delete(key);
+                    expired = true;
+                }
+            }
+            if (expired) blocksDirty = true;
+        }
+
+        // --- State ---
+        let scale = 200;
+        let octaves = 3;
+        let persistence = 0.4;
+        let lacunarity = 2.0;
+        let contrast = 2.5;
+        let brightness = -80;
+        let currentSeed = Math.floor(Math.random() * 100000);
+
+        seed(currentSeed);
+
+        // --- Ship state ---
+        let ship = { x: canvasW / 2, y: canvasH / 2, vx: 0, vy: 0, angle: 0 };
+        const GRAVITY = 0.15;
+        const THRUST_POWER = 0.35;
+        let TURN_SPEED = 0.025;
+        const MAX_SPEED = 8;
+        let FRICTION = 0.960;
+        let flameFrame = 0;
+        let scrollY = 0;
+        let lastFrameTime = 0;
+        let dt = 1; // delta-time factor: 1.0 = 60fps baseline
+
+
+
+        // --- Level state ---
+        let level = 1;
+        let lastLevelLines = 0;
+
+        // --- Fruit & Shield state ---
+        let shields = 0;
+        const MAX_SHIELDS = 10;
+        const collectedFruits = new Set();
+        const destroyedBlocks = new Set();
+
+        // --- Health state ---
+        const MAX_HP = 10;
+        let hp = MAX_HP;
+        let hpAnimTimer = 0;
+        const HP_ANIM_DURATION = 15;
+        const collectedHealth = new Set();
+
+        // Re-seed if ship spawns inside grey blocks
+        function shipSpawnBlocked() {
+            const tileScale = 10;
+            const cx = canvasW / 2;
+            const cy = canvasH / 2;
+            const r = SHIP_RADIUS;
+            const minCol = Math.floor((cx - r) / BLOCK_SIZE);
+            const maxCol = Math.floor((cx + r) / BLOCK_SIZE);
+            const minRow = Math.floor((cy - r) / BLOCK_SIZE);
+            const maxRow = Math.floor((cy + r) / BLOCK_SIZE);
+            for (let row = minRow; row <= maxRow; row++) {
+                for (let col = minCol; col <= maxCol; col++) {
+                    const nx = (col + 0.5) / tileScale;
+                    const ny = (row + 0.5) / tileScale;
+                    let v = fbm(nx, ny, 0, octaves, persistence, lacunarity);
+                    v = (v + 1) * 0.5;
+                    v = (v - 0.5) * contrast + 0.5 + brightness / 255;
+                    if (v >= 0.5) return true;
+                }
+            }
+            return false;
+        }
+        for (let attempts = 0; attempts < 100 && shipSpawnBlocked(); attempts++) {
+            currentSeed = Math.floor(Math.random() * 100000);
+            seed(currentSeed);
+        }
+
+        // --- Damage cooldown ---
+        let damageCooldown = 0;
+        const DAMAGE_COOLDOWN_FRAMES = 30;
+        let firstLanding = true;
+
+        // --- High score ---
+        let highScore = parseInt(localStorage.getItem('spaceBlocksHighScore')) || 0;
+
+        // --- Explosion state ---
+        let explosion = null; // { x, y, worldY, frame, particles }
+        const EXPLOSION_FRAMES = 30;
+        let gameOver = false;
+        let finalScore = 0;
+        let isNewHighScore = false;
+
+        function startExplosion() {
+            const colors = ['#999', '#8b0000', '#ff69b4'];
+            const particles = [];
+            for (let i = 0; i < 9; i++) {
+                const col = (i % 3) - 1;
+                const row = Math.floor(i / 3) - 1;
+                particles.push({
+                    x: 0, y: 0,
+                    vx: col * (1 + Math.random()),
+                    vy: row * (1 + Math.random()) - 0.5,
+                    size: 4 + Math.random() * 3,
+                    color: colors[Math.floor(Math.random() * colors.length)]
+                });
+            }
+            const screenY = ship.y;
+            const worldY = ship.y + scrollY;
+            // Destroy 3x3 gray blocks around explosion
+            const centerCol = Math.floor(ship.x / BLOCK_SIZE);
+            const centerRow = Math.floor(worldY / BLOCK_SIZE);
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const wc = centerCol + dc;
+                    const wr = centerRow + dr;
+                    if (isWorldBlockSolid(wc, wr)) {
+                        destroyedBlocks.add(wc + ',' + wr);
+                    }
+                }
+            }
+            blocksDirty = true;
+            explosion = { x: ship.x, screenY, scrollY0: scrollY, frame: 0, particles };
+        }
+
+        function updateExplosion() {
+            if (!explosion) return false;
+            explosion.frame += dt;
+            for (const p of explosion.particles) {
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.vy += 0.06 * dt;
+            }
+            if (explosion.frame >= EXPLOSION_FRAMES) {
+                explosion = null;
+                finalScore = Math.abs(Math.floor(scrollY / BLOCK_SIZE));
+                isNewHighScore = finalScore >= highScore && finalScore > 0;
+                if (isNewHighScore) {
+                    highScore = finalScore;
+                    localStorage.setItem('spaceBlocksHighScore', highScore);
+                }
+                gameOver = true;
+                return false;
+            }
+            return true;
+        }
+
+        function drawExplosion() {
+            if (!explosion) return;
+            const alpha = 1 - explosion.frame / EXPLOSION_FRAMES;
+            const sy = explosion.screenY - (scrollY - explosion.scrollY0);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            for (const p of explosion.particles) {
+                const half = p.size / 2;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(explosion.x + p.x - half, sy + p.y - half, p.size, p.size);
+            }
+            ctx.restore();
+        }
+
+        // --- Game Over screen (80s arcade style) ---
+
+        function drawGameOver() {
+            // Dim overlay
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(0, 0, canvasW, canvasH);
+
+            const cx = canvasW / 2;
+            const cy = canvasH / 2 - 20;
+
+            // GAME OVER - big blocky text
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Shadow / outline for 80s feel
+            const goSize = Math.min(canvasW / 8, 48);
+            ctx.font = 'bold ' + goSize + 'px monospace';
+
+            // Flicker
+            const flicker = Math.sin(Date.now() / 300) > -0.3 ? 1 : 0.3;
+            ctx.fillStyle = 'rgba(255,0,0,' + flicker + ')';
+            ctx.fillText('GAME OVER', cx + 2, cy + 2);
+            ctx.fillStyle = 'rgba(255,105,180,' + flicker + ')';
+            ctx.fillText('GAME OVER', cx, cy);
+
+            // SCORE
+            const scoreSize = Math.min(canvasW / 16, 24);
+            ctx.font = scoreSize + 'px monospace';
+            ctx.fillStyle = '#ccc';
+            ctx.fillText('SCORE: ' + finalScore, cx, cy + goSize + 10);
+
+            // NEW HIGH SCORE
+            if (isNewHighScore) {
+                const hsSize = Math.min(canvasW / 20, 18);
+                ctx.font = hsSize + 'px monospace';
+                const hsBlink = Math.sin(Date.now() / 200) > 0 ? '#ff69b4' : '#ff0';
+                ctx.fillStyle = hsBlink;
+                ctx.fillText('NEW HIGH SCORE!', cx, cy + goSize + 10 + scoreSize + 10);
+            }
+
+            // PRESS ANYWHERE TO RESTART
+            let bottomY = cy + goSize + 10 + scoreSize + (isNewHighScore ? 30 : 0) + 20;
+            const subSize = Math.min(canvasW / 22, 16);
+            ctx.font = subSize + 'px monospace';
+            const blink = Math.sin(Date.now() / 500) > 0 ? 1 : 0.3;
+            ctx.fillStyle = 'rgba(204,204,204,' + blink + ')';
+            ctx.fillText('PRESS ANYWHERE TO CONTINUE', cx, bottomY);
+
+            ctx.restore();
+        }
+
+        let justLeftGameOver = false;
+        function handleGameOverInput() {
+            if (!gameOver) return false;
+            gameOver = false;
+            respawnShip();
+            justLeftGameOver = true;
+            showSplash();
+            return true;
+        }
+
+        function respawnShip() {
+            stopThrustSound();
+            ship.x = canvasW / 2;
+            ship.y = canvasH / 2;
+            ship.vx = 0;
+            ship.vy = 0;
+            ship.angle = 0;
+            hp = MAX_HP;
+            shields = 0;
+            damageCooldown = 0;
+            firstLanding = true;
+            // Reset score, level, brightness, scroll
+            scrollY = 0;
+            level = 1;
+            lastLevelLines = 0;
+            brightness = -80;
+            resetPickups();
+            // New seed on restart
+            currentSeed = Math.floor(Math.random() * 100000);
+            seed(currentSeed);
+            for (let attempts = 0; attempts < 100 && shipSpawnBlocked(); attempts++) {
+                currentSeed = Math.floor(Math.random() * 100000);
+                seed(currentSeed);
+            }
+            blocksDirty = true;
+        }
+
+        // --- Input handling ---
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            if (gameOver) {
+                e.preventDefault();
+                handleGameOverInput();
+                return;
+            }
+            if (['ArrowLeft', 'ArrowRight', 'Space', ' '].includes(e.key) || e.code === 'Space') {
+                e.preventDefault();
+                keys[e.code || e.key] = true;
+            }
+        });
+        window.addEventListener('keyup', e => {
+            keys[e.code || e.key] = false;
+        });
+
+        // --- Touch controls ---
+        const touchBtns = document.querySelectorAll('.touch-btn');
+        const touchControls = document.querySelector('.touch-controls');
+        touchBtns.forEach(btn => {
+            const key = btn.dataset.key;
+
+            btn.addEventListener('touchstart', e => {
+                if (!gameStarted && key === 'Space') {
+                    startFromSplash();
+                    keys[key] = true;
+                    btn.classList.add('active');
+                    return; // no preventDefault - iOS needs raw gesture for AudioContext
+                }
+                e.preventDefault();
+                if (gameOver && key === 'Space') { handleGameOverInput(); return; }
+                keys[key] = true;
+                btn.classList.add('active');
+            });
+            btn.addEventListener('touchend', e => {
+                e.preventDefault();
+                keys[key] = false;
+                btn.classList.remove('active');
+            });
+            btn.addEventListener('touchcancel', e => {
+                keys[key] = false;
+                btn.classList.remove('active');
+            });
+        });
+
+        // --- Swipe-to-steer on steering zone ---
+        const steerZone = document.querySelector('.touch-zone-steer');
+        if (steerZone) {
+            const btnLeft = document.querySelector('.touch-btn-left');
+            const btnRight = document.querySelector('.touch-btn-right');
+            let swipeStartX = null;
+            let swipeActive = false;
+
+            steerZone.addEventListener('touchstart', e => {
+                if (e.touches.length === 1) {
+                    swipeStartX = e.touches[0].clientX;
+                    swipeActive = false;
+                }
+            }, { passive: true });
+
+            steerZone.addEventListener('touchmove', e => {
+                if (swipeStartX === null || e.touches.length !== 1) return;
+                const dx = e.touches[0].clientX - swipeStartX;
+                const DEAD_ZONE = 10;
+                if (Math.abs(dx) > DEAD_ZONE) {
+                    swipeActive = true;
+                    if (dx < -DEAD_ZONE) {
+                        keys['ArrowLeft'] = true;
+                        keys['ArrowRight'] = false;
+                        btnLeft.classList.add('active');
+                        btnRight.classList.remove('active');
+                    } else {
+                        keys['ArrowRight'] = true;
+                        keys['ArrowLeft'] = false;
+                        btnRight.classList.add('active');
+                        btnLeft.classList.remove('active');
+                    }
+                } else {
+                    // Inside dead zone - deactivate both directions
+                    if (swipeActive) {
+                        keys['ArrowLeft'] = false;
+                        keys['ArrowRight'] = false;
+                        btnLeft.classList.remove('active');
+                        btnRight.classList.remove('active');
+                    }
+                }
+            }, { passive: true });
+
+            const endSwipe = () => {
+                if (swipeActive) {
+                    keys['ArrowLeft'] = false;
+                    keys['ArrowRight'] = false;
+                    btnLeft.classList.remove('active');
+                    btnRight.classList.remove('active');
+                }
+                swipeStartX = null;
+                swipeActive = false;
+            };
+            steerZone.addEventListener('touchend', endSwipe);
+            steerZone.addEventListener('touchcancel', endSwipe);
+        }
+
+        // --- Block buffer (pre-generated offscreen canvas, world-space grid) ---
+        const BUFFER_SCREENS = 3;
+        let blockCanvas = document.createElement('canvas');
+        let blockCtx = blockCanvas.getContext('2d');
+        let blocksDirty = true;
+        let bufferStartRow = 0; // world row at top of buffer
+
+        function renderBlocks() {
+            // Snap buffer to world grid, centered around current view
+            bufferStartRow = Math.floor(scrollY / BLOCK_SIZE) - Math.ceil(canvasH / BLOCK_SIZE);
+            const cols = Math.ceil(canvasW / BLOCK_SIZE);
+            const totalRows = Math.ceil(canvasH * BUFFER_SCREENS / BLOCK_SIZE);
+
+            blockCanvas.width = canvasW;
+            blockCanvas.height = totalRows * BLOCK_SIZE;
+            blockCtx.clearRect(0, 0, canvasW, blockCanvas.height);
+
+            for (let i = 0; i < totalRows; i++) {
+                const wRow = bufferStartRow + i;
+                for (let col = 0; col < cols; col++) {
+                    const key = col + ',' + wRow;
+                    const solid = isWorldBlockSolid(col, wRow);
+
+                    if (solid) {
+                        blockCtx.fillStyle = flashingBlocks.has(key) ? '#fff' : '#999';
+                        blockCtx.fillRect(col * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    } else if (!solid && isFruitAt(col, wRow) && !collectedFruits.has(key)) {
+                        blockCtx.fillStyle = '#8b0000';
+                        blockCtx.fillRect(col * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    } else if (!solid && isHealthAt(col, wRow) && !collectedHealth.has(key)) {
+                        blockCtx.fillStyle = '#ff69b4';
+                        blockCtx.fillRect(col * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                }
+            }
+            blocksDirty = false;
+        }
+
+        function checkBufferBounds() {
+            const bufferWorldTop = bufferStartRow * BLOCK_SIZE;
+            const bufferWorldBottom = bufferWorldTop + blockCanvas.height;
+            // Re-render when view is within half a screen of the buffer edge
+            if (scrollY < bufferWorldTop + canvasH * 0.5 || scrollY + canvasH > bufferWorldBottom - canvasH * 0.5) {
+                blocksDirty = true;
+            }
+        }
+
+        // --- Collision helper (world-space grid) ---
+        const TILE_SCALE = 10; // noise feature size in tiles (~10 tiles per blob)
+        let solidCache = new Map();
+
+        function isWorldBlockSolid(wCol, wRow) {
+            const key = wCol + ',' + wRow;
+            if (destroyedBlocks.has(key)) return false;
+            const cached = solidCache.get(key);
+            if (cached !== undefined) return cached;
+            const cx = (wCol + 0.5) / TILE_SCALE;
+            const cy = (wRow + 0.5) / TILE_SCALE;
+            let v = fbm(cx, cy, 0, octaves, persistence, lacunarity);
+            v = (v + 1) * 0.5;
+            v = (v - 0.5) * contrast + 0.5 + brightness / 255;
+            const result = v >= 0.5;
+            solidCache.set(key, result);
+            return result;
+        }
+
+        function isFruitAt(wCol, wRow) {
+            if (isWorldBlockSolid(wCol, wRow)) return false;
+            if (!isWorldBlockSolid(wCol - 1, wRow) && !isWorldBlockSolid(wCol + 1, wRow) &&
+                !isWorldBlockSolid(wCol, wRow - 1) && !isWorldBlockSolid(wCol, wRow + 1)) return false;
+            const n = simplex3(wCol * 0.7, wRow * 0.7, 42.0);
+            return n > 0.67;
+        }
+
+        function isHealthAt(wCol, wRow) {
+            if (isWorldBlockSolid(wCol, wRow)) return false;
+            if (!isWorldBlockSolid(wCol - 1, wRow) && !isWorldBlockSolid(wCol + 1, wRow) &&
+                !isWorldBlockSolid(wCol, wRow - 1) && !isWorldBlockSolid(wCol, wRow + 1)) return false;
+            const n = simplex3(wCol * 0.5, wRow * 0.5, 99.0);
+            return n > 0.78;
+        }
+
+        // --- Ship physics ---
+        function updateShip() {
+            if (damageCooldown > 0) damageCooldown -= dt;
+
+            // Tilt
+            if (keys['ArrowLeft']) ship.angle -= TURN_SPEED * dt;
+            if (keys['ArrowRight']) ship.angle += TURN_SPEED * dt;
+
+            // Thrust
+            if (keys['Space']) {
+                ship.vx += Math.sin(ship.angle) * THRUST_POWER * dt;
+                ship.vy -= Math.cos(ship.angle) * THRUST_POWER * dt;
+            }
+
+            // Gravity
+            ship.vy += GRAVITY * dt;
+
+            // Friction (exponential decay scales with dt)
+            const frictionDt = Math.pow(FRICTION, dt);
+            ship.vx *= frictionDt;
+            ship.vy *= frictionDt;
+
+            // Speed cap
+            const speed = Math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy);
+            if (speed > MAX_SPEED) {
+                ship.vx = (ship.vx / speed) * MAX_SPEED;
+                ship.vy = (ship.vy / speed) * MAX_SPEED;
+            }
+
+            // Move
+            ship.x += ship.vx * dt;
+            ship.y += ship.vy * dt;
+
+            // Block collisions
+            resolveBlockCollisions();
+
+            // Fruit collection
+            const shipWorldY = ship.y + scrollY;
+            const shipCol = Math.floor(ship.x / BLOCK_SIZE);
+            const shipRow = Math.floor(shipWorldY / BLOCK_SIZE);
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const wCol = shipCol + dc;
+                    const wRow = shipRow + dr;
+                    const key = wCol + ',' + wRow;
+                    if (isFruitAt(wCol, wRow) && !collectedFruits.has(key)) {
+                        // Check actual overlap
+                        const bx = wCol * BLOCK_SIZE;
+                        const by = wRow * BLOCK_SIZE - scrollY;
+                        const closestX = Math.max(bx, Math.min(ship.x, bx + BLOCK_SIZE));
+                        const closestY = Math.max(by, Math.min(ship.y, by + BLOCK_SIZE));
+                        const dx = ship.x - closestX;
+                        const dy = ship.y - closestY;
+                        if (dx * dx + dy * dy < SHIP_RADIUS * SHIP_RADIUS) {
+                            collectedFruits.add(key);
+                            if (shields < MAX_SHIELDS) shields++;
+                            playFruitSound(shields);
+                            blocksDirty = true;
+                        }
+                    }
+                }
+            }
+
+            // Health pickup collection
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const wCol = shipCol + dc;
+                    const wRow = shipRow + dr;
+                    const key = wCol + ',' + wRow;
+                    if (isHealthAt(wCol, wRow) && !collectedHealth.has(key)) {
+                        const bx = wCol * BLOCK_SIZE;
+                        const by = wRow * BLOCK_SIZE - scrollY;
+                        const closestX = Math.max(bx, Math.min(ship.x, bx + BLOCK_SIZE));
+                        const closestY = Math.max(by, Math.min(ship.y, by + BLOCK_SIZE));
+                        const dx = ship.x - closestX;
+                        const dy = ship.y - closestY;
+                        if (dx * dx + dy * dy < SHIP_RADIUS * SHIP_RADIUS) {
+                            collectedHealth.add(key);
+                            if (hp < MAX_HP) { hp++; hpAnimTimer = HP_ANIM_DURATION; }
+                            playHealthSound();
+                            blocksDirty = true;
+                        }
+                    }
+                }
+            }
+
+            // Hard-clamped scrolling - ship never within 10 tiles of top/bottom
+            const MARGIN = 10 * BLOCK_SIZE;
+
+            // Clamp top: if ship above margin, scroll up to push ship back to margin
+            if (ship.y < MARGIN) {
+                const overshoot = MARGIN - ship.y;
+                scrollY -= overshoot;
+                ship.y = MARGIN;
+                checkBufferBounds();
+            }
+            // Clamp bottom: if ship below margin, scroll down to push ship back to margin
+            if (ship.y > canvasH - MARGIN) {
+                const overshoot = ship.y - (canvasH - MARGIN);
+                scrollY += overshoot;
+                ship.y = canvasH - MARGIN;
+                checkBufferBounds();
+            }
+
+            // Level-up check
+            const currentLines = Math.abs(Math.floor(scrollY / BLOCK_SIZE));
+            if (currentLines > highScore) {
+                highScore = currentLines;
+                localStorage.setItem('spaceBlocksHighScore', highScore);
+            }
+            if (currentLines - lastLevelLines >= 100) {
+                level++;
+                lastLevelLines += 100;
+                brightness += 5;
+                hp = MAX_HP;
+                hpAnimTimer = HP_ANIM_DURATION;
+                blocksDirty = true;
+            }
+
+            // Canvas edge bouncing
+            // X edge bounce (Y handled by hard clamp above)
+            if (ship.x - SHIP_RADIUS < 0) {
+                ship.x = SHIP_RADIUS;
+                ship.vx *= -0.5;
+            } else if (ship.x + SHIP_RADIUS > canvasW) {
+                ship.x = canvasW - SHIP_RADIUS;
+                ship.vx *= -0.5;
+            }
+        }
+
+        function resolveBlockCollisions() {
+            const r = SHIP_RADIUS;
+            // Ship world Y (screen Y + scrollY)
+            const shipWorldY = ship.y + scrollY;
+            // Bounding box in world grid coords
+            const minCol = Math.floor((ship.x - r) / BLOCK_SIZE);
+            const maxCol = Math.floor((ship.x + r) / BLOCK_SIZE);
+            const minRow = Math.floor((shipWorldY - r) / BLOCK_SIZE);
+            const maxRow = Math.floor((shipWorldY + r) / BLOCK_SIZE);
+
+            for (let wRow = minRow; wRow <= maxRow; wRow++) {
+                for (let col = minCol; col <= maxCol; col++) {
+                    if (col < 0 || col >= TILE_COLS) continue;
+                    if (!isWorldBlockSolid(col, wRow)) continue;
+
+                    // Block rect in screen space
+                    const bx = col * BLOCK_SIZE;
+                    const by = wRow * BLOCK_SIZE - scrollY;
+                    const bw = BLOCK_SIZE;
+                    const bh = BLOCK_SIZE;
+
+                    // Closest point on block rect to ship center (screen space)
+                    const closestX = Math.max(bx, Math.min(ship.x, bx + bw));
+                    const closestY = Math.max(by, Math.min(ship.y, by + bh));
+
+                    const dx = ship.x - closestX;
+                    const dy = ship.y - closestY;
+                    const distSq = dx * dx + dy * dy;
+
+                    if (distSq >= r * r) continue;
+
+                    const dist = Math.sqrt(distSq);
+
+                    // Collision flash + sound (skip when resting)
+                    const collSpeed = Math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy);
+                    if (collSpeed > REST_THRESHOLD) {
+                        flashBlock(col, wRow);
+                        playCollisionSound(col);
+                    }
+
+                    // Shield-powered block destruction
+                    if (shields > 0) {
+                        shields--;
+                        destroyedBlocks.add(col + ',' + wRow);
+                        blocksDirty = true;
+                        continue;
+                    }
+
+                    // Damage on block collision (no shield) - only when moving fast enough
+                    if (collSpeed > 2.0 && damageCooldown <= 0) {
+                        if (firstLanding) {
+                            firstLanding = false;
+                        } else {
+                            hp = Math.max(0, hp - 1);
+                            hpAnimTimer = HP_ANIM_DURATION;
+                            if (hp <= 0) {
+                                startExplosion();
+                                return;
+                            }
+                        }
+                        damageCooldown = DAMAGE_COOLDOWN_FRAMES;
+                    }
+
+                    // Penetration
+                    const pen = r - dist;
+                    if (dist === 0) {
+                        // Ship center inside block - push out via smallest axis
+                        const overlapLeft = (ship.x + r) - bx;
+                        const overlapRight = (bx + bw) - (ship.x - r);
+                        const overlapTop = (ship.y + r) - by;
+                        const overlapBottom = (by + bh) - (ship.y - r);
+                        const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+                        if (minOverlap === overlapLeft) { ship.x = bx - r; ship.vx *= -0.5; }
+                        else if (minOverlap === overlapRight) { ship.x = bx + bw + r; ship.vx *= -0.5; }
+                        else if (minOverlap === overlapTop) { ship.y = by - r; ship.vy *= -0.15; if (Math.abs(ship.vy) < 0.5) ship.vy = 0; }
+                        else { ship.y = by + bh + r; ship.vy *= -0.3; }
+                        continue;
+                    }
+
+                    // Normal direction
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+
+                    // Push out
+                    ship.x += nx * pen;
+                    ship.y += ny * pen;
+
+                    // Determine collision face by normal direction
+                    const absNx = Math.abs(nx);
+                    const absNy = Math.abs(ny);
+
+                    if (absNx > absNy) {
+                        // Side collision
+                        ship.vx *= -0.5;
+                    } else {
+                        if (ny < 0) {
+                            // Ship is above block - top collision (soft landing)
+                            ship.vy *= -0.15;
+                            if (Math.abs(ship.vy) < 0.5) ship.vy = 0;
+                        } else {
+                            // Ship is below block - bottom collision (hard bump)
+                            ship.vy *= -0.3;
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Draw ship ---
+        function drawShip() {
+            ctx.save();
+            ctx.translate(ship.x, ship.y);
+            ctx.rotate(ship.angle);
+
+            // Flame (drawn behind ship)
+            if (keys['Space']) {
+                flameFrame = (flameFrame + 1) % 2;
+                if (flameFrame === 0) {
+                    // Frame 1: short wide flame
+                    ctx.beginPath();
+                    ctx.moveTo(-4, SHIP_RADIUS);
+                    ctx.lineTo(4, SHIP_RADIUS);
+                    ctx.lineTo(1, SHIP_RADIUS + 10);
+                    ctx.lineTo(-1, SHIP_RADIUS + 10);
+                    ctx.closePath();
+                    ctx.fillStyle = '#ff6600';
+                    ctx.fill();
+                    // Inner
+                    ctx.beginPath();
+                    ctx.moveTo(-2, SHIP_RADIUS);
+                    ctx.lineTo(2, SHIP_RADIUS);
+                    ctx.lineTo(0, SHIP_RADIUS + 7);
+                    ctx.closePath();
+                    ctx.fillStyle = '#ffcc00';
+                    ctx.fill();
+                } else {
+                    // Frame 2: tall narrow flame
+                    ctx.beginPath();
+                    ctx.moveTo(-3, SHIP_RADIUS);
+                    ctx.lineTo(3, SHIP_RADIUS);
+                    ctx.lineTo(2, SHIP_RADIUS + 14);
+                    ctx.lineTo(-2, SHIP_RADIUS + 14);
+                    ctx.closePath();
+                    ctx.fillStyle = '#ff4400';
+                    ctx.fill();
+                    // Inner
+                    ctx.beginPath();
+                    ctx.moveTo(-1.5, SHIP_RADIUS);
+                    ctx.lineTo(1.5, SHIP_RADIUS);
+                    ctx.lineTo(0, SHIP_RADIUS + 10);
+                    ctx.closePath();
+                    ctx.fillStyle = '#ffaa00';
+                    ctx.fill();
+                }
+            } else {
+                flameFrame = 0;
+            }
+
+            // Ship body - triangle
+            const R = SHIP_RADIUS;
+            ctx.beginPath();
+            ctx.moveTo(0, -R);
+            ctx.lineTo(-R * 0.7, R);
+            ctx.lineTo(R * 0.7, R);
+            ctx.closePath();
+            const t = hp / MAX_HP;
+            const r = 255;
+            const g = Math.round(255 - (255 - 105) * t);
+            const b = Math.round(255 - (255 - 180) * t);
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fill();
+
+            // Shield rings
+            for (let s = 0; s < shields; s++) {
+                ctx.beginPath();
+                ctx.arc(0, 0, SHIP_RADIUS + 3 + s * 3, 0, Math.PI * 2);
+                ctx.strokeStyle = '#8b0000';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        // --- Nav icon (mobile, when resting) ---
+        let restingFrames = 0;
+        let navIconVisible = false;
+        const REST_THRESHOLD = 0.3;
+        const REST_DELAY_FRAMES = 60; // ~1 second at 60fps
+
+        function updateRestState() {
+            const speed = Math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy);
+            if (speed < REST_THRESHOLD) {
+                restingFrames += dt;
+            } else {
+                restingFrames = 0;
+            }
+            navIconVisible = isMobile && restingFrames >= REST_DELAY_FRAMES;
+        }
+
+        function drawNavIcon() {
+            if (!navIconVisible) return;
+            // Blink between dark grey and #ccc
+            const t = (Math.sin(Date.now() / 400) + 1) / 2; // 0..1
+            const v = Math.round(68 + t * (204 - 68)); // 68 (#444) to 204 (#ccc)
+            const color = `rgb(${v},${v},${v})`;
+            // Draw menu-button.svg style icon: white circle + black square
+            const cx = canvasW - 26;
+            const cy = 48;
+            const r = 18;
+            // Circle
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            // Black square inside (22/40 of diameter)
+            const sqSize = r * 2 * (22 / 40);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(cx - sqSize / 2, cy - sqSize / 2, sqSize, sqSize);
+        }
+
+        // --- HUD ---
+        function drawHUD() {
+            // Background bar at top
+            const barH = 24;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvasW, barH);
+
+            // HP squares - top-left
+            const sqSize = 8;
+            const sqGap = 3;
+            const hpX = 8;
+            const hpY = (barH - sqSize) / 2;
+            const hpBarW = MAX_HP * (sqSize + sqGap) - sqGap;
+            const hpBarH = sqSize;
+            let hpScale = 1;
+            if (hpAnimTimer > 0) {
+                hpAnimTimer--;
+                hpScale = 1 + 0.3 * (hpAnimTimer / HP_ANIM_DURATION);
+            }
+            const hpT = hpAnimTimer > 0 ? hpAnimTimer / HP_ANIM_DURATION : 0;
+            for (let i = 0; i < MAX_HP; i++) {
+                const sx = hpX + i * (sqSize + sqGap);
+                if (i < hp) {
+                    const cx = sx + sqSize / 2;
+                    const cy = hpY + sqSize / 2;
+                    ctx.save();
+                    ctx.translate(cx, cy);
+                    ctx.scale(hpScale, hpScale);
+                    ctx.translate(-cx, -cy);
+                    const r = 255;
+                    const g = Math.round(105 + (255 - 105) * hpT);
+                    const b = Math.round(180 + (255 - 180) * hpT);
+                    ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+                    ctx.fillRect(sx, hpY, sqSize, sqSize);
+                    ctx.restore();
+                } else {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                    ctx.fillRect(sx, hpY, sqSize, sqSize);
+                }
+            }
+
+            // Shield indicator - below HP bar (only at max)
+            if (shields >= MAX_SHIELDS) {
+                ctx.font = '8px -apple-system, BlinkMacSystemFont, sans-serif';
+                const fixedW = ctx.measureText('MAX SHIELD').width;
+                const padX = 5, padY = 2;
+                const btnW = fixedW + padX * 2;
+                const btnH = 10 + padY * 2;
+                const btnX = hpX - 1;
+                const btnTopY = barH + 4;
+                ctx.fillStyle = '#8b0000';
+                ctx.fillRect(btnX, btnTopY, btnW, btnH);
+                ctx.fillStyle = '#ffffff';
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'left';
+                ctx.fillText('MAX SHIELD', btnX + padX, btnTopY + btnH / 2);
+            }
+
+            // Level/lines - centered
+            const lines = Math.abs(Math.floor(scrollY / BLOCK_SIZE));
+            ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+            ctx.fillText('Lv ' + level + '  \u00b7  ' + lines + ' lines', canvasW / 2, barH / 2);
+
+            // High score - right
+            ctx.textAlign = 'right';
+            ctx.fillText('HI ' + highScore, canvasW - 8, barH / 2);
+        }
+
+        // --- Splash screen ---
+        let gameStarted = false;
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalExit = document.getElementById('modal-exit');
+        const modalControls = document.getElementById('modal-controls');
+
+        const mobileQuery = window.matchMedia('(max-width: 768px)');
+        const isMobile = mobileQuery.matches;
+
+        // A desktop window resized across 768px reloads, so the layout and the game use the same mode.
+        // Not on touch screens: turning a phone sideways must not leave the touch controls.
+        if (!window.matchMedia('(pointer: coarse)').matches && mobileQuery.addEventListener) {
+            mobileQuery.addEventListener('change', () => location.reload());
+        }
+        const modalStartHint = document.querySelector('.modal-start-hint');
+
+        // --- Pre-splash (mobile audio unlock) ---
+        const preSplash = document.getElementById('pre-splash');
+        if (isMobile) {
+            preSplash.classList.add('active');
+            modalOverlay.classList.add('hidden');
+            touchControls.style.display = 'none';
+            preSplash.addEventListener('touchstart', function onPreSplashTap(e) {
+                e.preventDefault();
+                initAudio();
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+                preSplash.classList.remove('active');
+                modalOverlay.classList.remove('hidden');
+                touchControls.style.display = '';
+                preSplash.removeEventListener('touchstart', onPreSplashTap);
+            });
+        }
+
+        if (isMobile) {
+            modalStartHint.textContent = 'Tap thrust to start';
+        } else {
+            modalControls.innerHTML = 'Controls<br><kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>Space</kbd>';
+            modalStartHint.textContent = 'Press Space to start';
+        }
+
+        // Music toggle on splash
+        const musicToggleBtn = document.getElementById('music-toggle');
+        const musicStatusSpan = musicToggleBtn.querySelector('.music-status');
+        musicStatusSpan.textContent = musicEnabled ? 'On' : 'Off';
+        musicToggleBtn.classList.toggle('off', !musicEnabled);
+
+        // Music on / off without clicks (setTargetAtTime, same constants as every pteroscillator app)
+        function fadeMusic(target, timeConstant) {
+            const now = audioCtx.currentTime;
+            [musicMasterGain, musicBypassGain].forEach(function(g) {
+                if (!g) return;
+                g.gain.cancelScheduledValues(now);
+                g.gain.setTargetAtTime(target, now, timeConstant);
+            });
+        }
+        musicToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            musicEnabled = !musicEnabled;
+            musicStatusSpan.textContent = musicEnabled ? 'On' : 'Off';
+            musicToggleBtn.classList.toggle('off', !musicEnabled);
+            if (musicEnabled) {
+                initAudio();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                if (!musicMasterGain) initBackgroundMusic();
+                if (activeChordIndex < 0) switchChord(0);
+                if (!autoPlayTimer) autoPlayTimer = setTimeout(autoPlayNext, autoPlaySpeed * 1000);
+                fadeMusic(musicVolume, 0.02);
+            } else {
+                if (audioCtx) fadeMusic(0, 0.03);
+                if (autoPlayTimer) { clearTimeout(autoPlayTimer); autoPlayTimer = null; }
+            }
+        });
+
+        // Eagerly unlock AudioContext on first touch so iOS audio is ready at game start
+        function earlyAudioUnlock() {
+            initAudio();
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            document.removeEventListener('touchstart', earlyAudioUnlock);
+            document.removeEventListener('touchend', earlyAudioUnlock);
+            document.removeEventListener('click', earlyAudioUnlock);
+        }
+        document.addEventListener('touchstart', earlyAudioUnlock);
+        document.addEventListener('touchend', earlyAudioUnlock);
+        document.addEventListener('click', earlyAudioUnlock);
+
+        // Click/tap anywhere except exit starts the game
+        function handleModalStart(e) {
+            if (e.target === musicToggleBtn || musicToggleBtn.contains(e.target)) return;
+            if (e.target === modalExit || modalExit.contains(e.target)) return;
+            e.preventDefault();
+            startFromSplash();
+        }
+        modalOverlay.addEventListener('click', handleModalStart);
+        modalOverlay.addEventListener('touchend', handleModalStart);
+
+        function startMusic() {
+            if (!musicEnabled) return;
+            if (!musicMasterGain) {
+                initBackgroundMusic();
+                switchChord(0);
+            }
+            if (!autoPlayTimer) autoPlayTimer = setTimeout(autoPlayNext, autoPlaySpeed * 1000);
+        }
+
+        function startFromSplash() {
+            if (gameStarted) return;
+            gameStarted = true;
+            initAudio();
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume().then(startMusic);
+            } else {
+                startMusic();
+            }
+            modalOverlay.classList.add('hidden');
+            touchBtns.forEach(b => b.classList.add('no-anim'));
+            touchControls.classList.add('no-anim');
+            document.getElementById('desktop-nav-toggle').classList.remove('hidden');
+            modalStartHint.textContent = isMobile ? 'Tap thrust to start' : 'Press Space to start';
+        }
+        // Spacebar starts the game on desktop (with thrust active)
+        window.addEventListener('keydown', (e) => {
+            if (justLeftGameOver) {
+                justLeftGameOver = false;
+                return;
+            }
+            if (!gameStarted && (e.code === 'Space' || e.key === ' ')) {
+                e.preventDefault();
+                startFromSplash();
+                keys['Space'] = true;
+            }
+            if (gameStarted && e.key === 'Escape') {
+                e.preventDefault();
+                showSplash(true);
+            }
+        });
+
+        // Prevent exit/logo links from starting the game
+        modalExit.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // Nav icon tap handler (mobile) + game over handler
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvasW / rect.width;
+            const scaleY = canvasH / rect.height;
+            const tx = (e.clientX - rect.left) * scaleX;
+            const ty = (e.clientY - rect.top) * scaleY;
+            // Game over screen
+            if (gameOver) {
+                handleGameOverInput();
+                return;
+            }
+            if (!navIconVisible || !gameStarted) return;
+            // Hit area around the nav icon
+            if (tx > canvasW - 52 && ty > 24 && ty < 74) {
+                showSplash(true);
+            }
+        });
+
+        // --- Game loop ---
+        function gameLoop(timestamp) {
+            solidCache.clear();
+            if (lastFrameTime) {
+                const elapsed = timestamp - lastFrameTime;
+                dt = Math.min(elapsed / (1000 / 60), 3); // normalize to 60fps, cap at 3x
+            }
+            lastFrameTime = timestamp;
+            expireFlashes();
+            if (blocksDirty) renderBlocks();
+            if (gameStarted && !gameOver) {
+                const exploding = updateExplosion();
+                if (!exploding && !explosion) {
+                    updateThrustSound();
+                    updateShip();
+                } else if (exploding || explosion) {
+                    if (thrustActive) stopThrustSound();
+                }
+            }
+            ctx.clearRect(0, 0, canvasW, canvasH);
+            // Draw visible portion of the pre-generated buffer
+            const offsetInBuffer = scrollY - bufferStartRow * BLOCK_SIZE;
+            ctx.drawImage(blockCanvas, 0, offsetInBuffer, canvasW, canvasH, 0, 0, canvasW, canvasH);
+            if (gameOver) {
+                drawGameOver();
+            } else if (gameStarted) {
+                if (explosion) {
+                    drawExplosion();
+                } else {
+                    drawShip();
+                }
+                drawHUD();
+                updateRestState();
+                drawNavIcon();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        blocksDirty = true;
+        requestAnimationFrame(gameLoop);
+
+        function resetPickups() {
+            collectedFruits.clear();
+            destroyedBlocks.clear();
+            collectedHealth.clear();
+            shields = 0;
+            hp = MAX_HP;
+        }
+
+
+        // --- Desktop nav toggle -> show splash ---
+        const desktopNavToggle = document.getElementById('desktop-nav-toggle');
+
+        function showSplash(isResume) {
+            gameStarted = false;
+            navIconVisible = false;
+            restingFrames = 0;
+            if (isResume) {
+                modalStartHint.textContent = isMobile ? 'Tap thrust to resume' : 'Press Space to resume';
+            }
+            modalOverlay.classList.remove('hidden');
+            touchBtns.forEach(b => b.classList.remove('no-anim'));
+            touchControls.classList.remove('no-anim');
+            desktopNavToggle.classList.add('hidden');
+        }
+        desktopNavToggle.addEventListener('click', () => showSplash(true));
+
+        // Stop a focused button from also firing its own click when Space is released
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') e.preventDefault();
+        });
+
+        // Resize
+        function onResize() {
+            calculateCanvasSize();
+            blocksDirty = true;
+            // Keep ship in bounds after resize
+            ship.x = Math.min(ship.x, canvasW - SHIP_RADIUS);
+            ship.y = Math.min(ship.y, canvasH - SHIP_RADIUS);
+        }
+        window.addEventListener('resize', onResize);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', onResize);
+        }
+    </script>
+</body>
+</html>
